@@ -71,6 +71,24 @@
     /* FC event compact style */
     .fc-event-title { font-weight: 600; font-size: 0.72rem; }
 
+    /* Today cell — vibrant indigo highlight */
+    .fc-day-today .fc-daygrid-day-number {
+      background-color: #6366f1;
+      color: #fff !important;
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    /* Event pill — ticker + quarter */
+    .ev-ticker { font-weight: 700; font-size: 0.75rem; letter-spacing: 0.03em; }
+    .ev-quarter { font-size: 0.65rem; opacity: 0.80; margin-left: 3px; }
+
     /* Loading overlay */
     #loadingOverlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.4);
@@ -570,18 +588,21 @@
 
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: window.innerWidth < 640 ? 'listMonth' : 'dayGridMonth',
-        initialDate: new Date(state.selectedYear, 0, 1),
+        initialDate: new Date(),
         height: 'auto',
         headerToolbar: {
           left:   'prev,next today',
           center: 'title',
-          right:  'dayGridMonth,listWeek,listMonth',
+          right:  'dayGridMonth,dayGridWeek,listMonth',
         },
         buttonText: {
-          today:     'Today',
-          month:     'Month',
-          listWeek:  'Week',
-          listMonth: 'List',
+          today:       'Today',
+          month:       'Month',
+          dayGridWeek: 'Week',
+          listMonth:   'List',
+        },
+        views: {
+          dayGridWeek: { dayMaxEvents: false },
         },
         events: async (fetchInfo, successCb, failureCb) => {
           loadingOverlay.classList.remove('hidden');
@@ -600,6 +621,11 @@
           } finally {
             loadingOverlay.classList.add('hidden');
           }
+        },
+        eventContent: (arg) => {
+          const { ticker, quarter } = arg.event.extendedProps;
+          const q = quarter ? `<span class="ev-quarter">${quarter}</span>` : '';
+          return { html: `<span class="ev-ticker">${ticker}</span>${q}` };
         },
         eventClick: showModal,
         eventDidMount: (info) => {
