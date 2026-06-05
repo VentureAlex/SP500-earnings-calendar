@@ -624,8 +624,19 @@
         },
         eventContent: (arg) => {
           const { ticker, quarter } = arg.event.extendedProps;
-          const q = quarter ? `<span class="ev-quarter">${quarter}</span>` : '';
-          return { html: `<span class="ev-ticker">${ticker}</span>${q}` };
+          const wrap = document.createElement('span');
+          wrap.style.cssText = 'display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;';
+          const t = document.createElement('b');
+          t.className = 'ev-ticker';
+          t.textContent = ticker || arg.event.title;
+          wrap.appendChild(t);
+          if (quarter) {
+            const q = document.createElement('span');
+            q.className = 'ev-quarter';
+            q.textContent = quarter;
+            wrap.appendChild(q);
+          }
+          return { domNodes: [wrap] };
         },
         eventClick: showModal,
         eventDidMount: (info) => {
