@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fortune 500 Earnings Calendar</title>
 
-  <!-- Tailwind CSS (CDN — swap for local build in production) -->
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -20,7 +19,7 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- FullCalendar v6 (MIT licensed, CDN) -->
+  <!-- FullCalendar v6 -->
   <link  href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
@@ -46,17 +45,12 @@
     .dark .fc-list-event-dot  { border-color: #6366f1; }
     .dark .fc th, .dark .fc td{ border-color: #1f2937 !important; }
 
-    /* Light mode overrides */
-    .light-mode .fc {
-      --fc-today-bg-color: rgba(99,102,241,0.07);
-    }
+    .light-mode .fc { --fc-today-bg-color: rgba(99,102,241,0.07); }
 
-    /* Custom scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
 
-    /* Ticker chip */
     .ticker-chip {
       display: inline-flex; align-items: center; gap: 4px;
       padding: 2px 8px; border-radius: 9999px;
@@ -65,31 +59,22 @@
     .ticker-chip button { background: none; border: none; cursor: pointer;
                           color: rgba(255,255,255,0.7); padding: 0; line-height:1; }
 
-    /* Sidebar scroll */
     #sidebar { overflow-y: auto; scrollbar-width: thin; }
 
-    /* FC event compact style */
     .fc-event-title { font-weight: 600; font-size: 0.72rem; }
 
-    /* Today cell — vibrant indigo highlight */
     .fc-day-today .fc-daygrid-day-number {
       background-color: #6366f1;
       color: #fff !important;
       border-radius: 50%;
-      width: 26px;
-      height: 26px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      line-height: 1;
+      width: 26px; height: 26px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 700; line-height: 1;
     }
 
-    /* Event pill — ticker + quarter */
-    .ev-ticker { font-weight: 700; font-size: 0.75rem; letter-spacing: 0.03em; }
+    .ev-ticker  { font-weight: 700; font-size: 0.75rem; letter-spacing: 0.03em; }
     .ev-quarter { font-size: 0.65rem; opacity: 0.80; margin-left: 3px; }
 
-    /* Loading overlay */
     #loadingOverlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.4);
       display: flex; align-items: center; justify-content: center;
@@ -97,11 +82,93 @@
     }
     #loadingOverlay.hidden { opacity: 0; pointer-events: none; }
 
-    /* Mobile sidebar toggle */
     @media (max-width: 768px) {
       #sidebar { position: fixed; left: -16rem; top: 0; height: 100vh;
                  z-index: 40; transition: left 0.25s; }
       #sidebar.open { left: 0; }
+    }
+
+    /* ── Year view ── */
+    #yearView { padding: 1rem; overflow-y: auto; }
+
+    .year-mini-month {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 0.75rem;
+      padding: 0.85rem;
+      min-width: 0;
+    }
+
+    .year-mini-month-header {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #e5e7eb;
+      margin-bottom: 0.4rem;
+      cursor: pointer;
+      transition: color 0.15s;
+      display: inline-block;
+    }
+    .year-mini-month-header:hover { color: #818cf8; }
+
+    .year-day-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1px 0;
+    }
+    .year-day-num {
+      font-size: 0.625rem;
+      width: 1.25rem; height: 1.25rem;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      color: #9ca3af;
+      line-height: 1;
+    }
+    .year-day-num.is-today {
+      background: #6366f1;
+      color: #fff;
+      font-weight: 700;
+    }
+    .year-day-num.has-events { color: #e5e7eb; }
+    .year-day-cell.clickable { cursor: pointer; }
+    .year-day-cell.clickable:hover .year-day-num { background: #1f2937; }
+
+    .year-dots {
+      display: flex;
+      gap: 1.5px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 1px;
+      min-height: 5px;
+    }
+    .year-dot {
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Year view tip banner */
+    #yearViewTip {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      background: rgba(99,102,241,0.1);
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: 0.75rem;
+      padding: 0.875rem 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.8rem;
+      color: #a5b4fc;
+      line-height: 1.5;
+    }
+    #yearViewTip svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* Active state for custom Year button */
+    .fc-yearViewBtn-button.fc-button-active,
+    .dark .fc-yearViewBtn-button.fc-button-active {
+      background-color: #6366f1 !important;
+      border-color: #6366f1 !important;
+      color: #fff !important;
     }
   </style>
 </head>
@@ -112,7 +179,6 @@
   <header class="flex items-center justify-between px-4 py-3
                  bg-gray-900 border-b border-gray-800 z-30 sticky top-0 shadow-lg">
     <div class="flex items-center gap-3">
-      <!-- Mobile sidebar toggle -->
       <button id="sidebarToggle"
               class="md:hidden p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
               aria-label="Toggle filters">
@@ -133,12 +199,10 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <!-- Event count badge -->
       <span id="eventCountBadge"
             class="hidden text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded-full">
-        — events
+        -- events
       </span>
-      <!-- Dark mode toggle -->
       <button id="darkModeToggle"
               class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
               aria-label="Toggle dark mode" title="Toggle dark/light mode">
@@ -206,17 +270,15 @@
         </label>
         <div class="relative">
           <input id="tickerInput" type="text"
-                 placeholder="e.g. AAPL, MSFT…"
+                 placeholder="e.g. AAPL, MSFT"
                  autocomplete="off"
                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
                         focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors pr-8" />
-          <!-- Autocomplete dropdown -->
           <ul id="tickerDropdown"
               class="hidden absolute z-50 w-full bg-gray-800 border border-gray-700
                      rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl text-sm">
           </ul>
         </div>
-        <!-- Selected ticker chips -->
         <div id="tickerChips" class="flex flex-wrap gap-1 mt-2"></div>
       </div>
 
@@ -226,7 +288,6 @@
         Reset all filters
       </button>
 
-      <!-- Divider -->
       <hr class="border-gray-800" />
 
       <!-- Legend -->
@@ -235,7 +296,6 @@
         <div id="legend" class="flex flex-col gap-1.5 text-xs"></div>
       </div>
 
-      <!-- Sidebar overlay close (mobile) -->
       <div class="flex-1"></div>
     </aside>
 
@@ -244,9 +304,33 @@
          class="hidden fixed inset-0 bg-black/50 z-30 md:hidden"
          aria-hidden="true"></div>
 
-    <!-- ──────────────── CALENDAR ──────────────── -->
-    <main class="flex-1 overflow-auto p-3 md:p-4">
+    <!-- ──────────────── CALENDAR + YEAR VIEW ──────────────── -->
+    <main class="flex-1 overflow-auto p-3 md:p-4 flex flex-col">
+
+      <!-- Standard FullCalendar -->
       <div id="calendar" class="h-full min-h-[600px]"></div>
+
+      <!-- Year view (custom, shown when Year button is active) -->
+      <div id="yearView" class="hidden flex-col flex-1">
+
+        <!-- Tip banner: shown when no ticker or industry is filtered -->
+        <div id="yearViewTip">
+          <svg class="w-4 h-4 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/>
+          </svg>
+          <span>
+            <strong>Tip:</strong> Use the filter panel on the left to select a specific ticker or industry.
+            Their earnings dates will be highlighted across the year view.
+          </span>
+        </div>
+
+        <!-- 12-month grid -->
+        <div id="yearViewGrid"
+             class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -256,7 +340,6 @@
        role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md
                 transform transition-all">
-      <!-- Modal header -->
       <div class="flex items-start justify-between p-5 border-b border-gray-800">
         <div class="flex items-center gap-3">
           <div id="modalColorDot" class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5"></div>
@@ -276,11 +359,8 @@
         </button>
       </div>
 
-      <!-- Modal body -->
-      <div class="p-5 grid grid-cols-2 gap-4 text-sm" id="modalBody">
-      </div>
+      <div class="p-5 grid grid-cols-2 gap-4 text-sm" id="modalBody"></div>
 
-      <!-- Modal footer -->
       <div class="px-5 pb-5 flex items-center justify-between">
         <a id="modalYahooLink" href="#" target="_blank" rel="noopener noreferrer"
            class="text-indigo-400 hover:text-indigo-300 text-sm transition-colors flex items-center gap-1">
@@ -303,7 +383,7 @@
   <div id="loadingOverlay" class="hidden">
     <div class="flex flex-col items-center gap-3">
       <div class="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-      <p class="text-sm text-gray-300">Loading earnings data…</p>
+      <p class="text-sm text-gray-300">Loading earnings data...</p>
     </div>
   </div>
 
@@ -312,25 +392,23 @@
   (() => {
     'use strict';
 
-    // ── Config ──────────────────────────────────────────────────────────
-    // Same origin works both locally (FastAPI serves /api) and on Vercel
     const API = '';
 
     const INDUSTRY_COLORS = {
-      'Technology':              '#6366f1',
-      'Healthcare':              '#10b981',
-      'Financials':              '#f59e0b',
-      'Energy':                  '#ef4444',
-      'Retail':                  '#8b5cf6',
-      'Consumer':                '#ec4899',
-      'Automotive':              '#14b8a6',
-      'Telecommunications':      '#3b82f6',
-      'Media':                   '#f97316',
-      'Industrial':              '#64748b',
-      'Aerospace':               '#0ea5e9',
-      'Logistics':               '#a855f7',
-      'Real Estate':             '#84cc16',
-      'default':                 '#6b7280',
+      'Technology':         '#6366f1',
+      'Healthcare':         '#10b981',
+      'Financials':         '#f59e0b',
+      'Energy':             '#ef4444',
+      'Retail':             '#8b5cf6',
+      'Consumer':           '#ec4899',
+      'Automotive':         '#14b8a6',
+      'Telecommunications': '#3b82f6',
+      'Media':              '#f97316',
+      'Industrial':         '#64748b',
+      'Aerospace':          '#0ea5e9',
+      'Logistics':          '#a855f7',
+      'Real Estate':        '#84cc16',
+      'default':            '#6b7280',
     };
 
     function colorFor(industry) {
@@ -352,6 +430,7 @@
       selectedIndustry:'',
       companies:       [],
       currentEvent:    null,
+      inYearView:      false,
     };
 
     // ── DOM refs ─────────────────────────────────────────────────────────
@@ -365,6 +444,10 @@
     const loadingOverlay = $('loadingOverlay');
     const eventCountBadge= $('eventCountBadge');
     const sidebar        = $('sidebar');
+    const calendarEl     = $('calendar');
+    const yearViewEl     = $('yearView');
+    const yearViewTip    = $('yearViewTip');
+    const yearViewGrid   = $('yearViewGrid');
 
     let calendar;
 
@@ -406,19 +489,19 @@
 
     yearSelect.addEventListener('change', () => {
       state.selectedYear = parseInt(yearSelect.value, 10);
-      // Jump calendar to Jan 1 of the selected year
-      const targetDate = new Date(state.selectedYear, 0, 1);
-      calendar.gotoDate(targetDate);
-      calendar.refetchEvents();
+      if (state.inYearView) {
+        renderYearView();
+      } else {
+        calendar.gotoDate(new Date(state.selectedYear, 0, 1));
+        calendar.refetchEvents();
+      }
     });
 
-    // ── Quarter buttons ───────────────────────────────────────────────────
+    // ── Quarter buttons ──────────────────────────────────────────────────
     function styleQuarterBtns() {
       document.querySelectorAll('.quarter-btn').forEach(btn => {
         const isActive = btn.dataset.q === (state.selectedQuarter || '');
-        btn.className = btn.className
-          .replace(/bg-\S+|text-\S+(?=\s)/g, '')
-          .trim();
+        btn.className = btn.className.replace(/bg-\S+|text-\S+(?=\s)/g, '').trim();
         if (isActive) {
           btn.classList.add('bg-indigo-600', 'text-white');
         } else {
@@ -431,7 +514,7 @@
       btn.addEventListener('click', () => {
         state.selectedQuarter = btn.dataset.q || null;
         styleQuarterBtns();
-        calendar.refetchEvents();
+        if (state.inYearView) renderYearView(); else calendar.refetchEvents();
       });
     });
 
@@ -453,10 +536,10 @@
 
     industrySelect.addEventListener('change', () => {
       state.selectedIndustry = industrySelect.value;
-      calendar.refetchEvents();
+      if (state.inYearView) renderYearView(); else calendar.refetchEvents();
     });
 
-    // ── Ticker autocomplete ───────────────────────────────────────────────
+    // ── Ticker autocomplete ──────────────────────────────────────────────
     async function loadCompanies() {
       try {
         const res = await fetch(`${API}/api/companies`);
@@ -496,7 +579,6 @@
       tickerDropdown.classList.remove('hidden');
     });
 
-    // Close dropdown on outside click
     document.addEventListener('click', e => {
       if (!tickerInput.contains(e.target) && !tickerDropdown.contains(e.target)) {
         tickerDropdown.classList.add('hidden');
@@ -506,11 +588,7 @@
     tickerInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         const val = tickerInput.value.trim().toUpperCase();
-        if (val) {
-          addTicker(val);
-          tickerInput.value = '';
-          tickerDropdown.classList.add('hidden');
-        }
+        if (val) { addTicker(val); tickerInput.value = ''; tickerDropdown.classList.add('hidden'); }
       }
     });
 
@@ -518,20 +596,20 @@
       if (!ticker || state.selectedTickers.has(ticker)) return;
       state.selectedTickers.add(ticker);
       renderChips();
-      calendar.refetchEvents();
+      if (state.inYearView) renderYearView(); else calendar.refetchEvents();
     }
 
     function removeTicker(ticker) {
       state.selectedTickers.delete(ticker);
       renderChips();
-      calendar.refetchEvents();
+      if (state.inYearView) renderYearView(); else calendar.refetchEvents();
     }
 
     function renderChips() {
       tickerChips.innerHTML = [...state.selectedTickers].map(t => `
         <span class="ticker-chip">
           ${t}
-          <button data-ticker="${t}" aria-label="Remove ${t}">×</button>
+          <button data-ticker="${t}" aria-label="Remove ${t}">&times;</button>
         </span>
       `).join('');
       tickerChips.querySelectorAll('button').forEach(btn => {
@@ -539,24 +617,28 @@
       });
     }
 
-    // ── Reset filters ─────────────────────────────────────────────────────
+    // ── Reset filters ────────────────────────────────────────────────────
     $('resetFilters').addEventListener('click', () => {
       state.selectedYear    = new Date().getFullYear();
       state.selectedQuarter = null;
       state.selectedTickers.clear();
       state.selectedIndustry = '';
 
-      yearSelect.value    = state.selectedYear;
+      yearSelect.value     = state.selectedYear;
       industrySelect.value = '';
-      tickerInput.value   = '';
+      tickerInput.value    = '';
       renderChips();
       styleQuarterBtns();
 
-      calendar.gotoDate(new Date(state.selectedYear, 0, 1));
-      calendar.refetchEvents();
+      if (state.inYearView) {
+        renderYearView();
+      } else {
+        calendar.gotoDate(new Date(state.selectedYear, 0, 1));
+        calendar.refetchEvents();
+      }
     });
 
-    // ── Legend ────────────────────────────────────────────────────────────
+    // ── Legend ───────────────────────────────────────────────────────────
     function renderLegend() {
       const legendEl = $('legend');
       const entries = Object.entries(INDUSTRY_COLORS).filter(([k]) => k !== 'default');
@@ -568,15 +650,184 @@
       `).join('');
     }
 
+    // ── Year view ────────────────────────────────────────────────────────
+    function hasActiveFilter() {
+      return state.selectedTickers.size > 0 || !!state.selectedIndustry;
+    }
+
+    function switchToYearView() {
+      state.inYearView = true;
+      calendarEl.classList.add('hidden');
+      yearViewEl.classList.remove('hidden');
+      yearViewEl.classList.add('flex');
+      document.querySelector('.fc-yearViewBtn-button')?.classList.add('fc-button-active');
+      renderYearView();
+    }
+
+    function switchFromYearView() {
+      state.inYearView = false;
+      calendarEl.classList.remove('hidden');
+      yearViewEl.classList.add('hidden');
+      yearViewEl.classList.remove('flex');
+      document.querySelector('.fc-yearViewBtn-button')?.classList.remove('fc-button-active');
+    }
+
+    async function renderYearView() {
+      const year = state.selectedYear || new Date().getFullYear();
+
+      // Show/hide tip based on whether a filter is active
+      yearViewTip.classList.toggle('hidden', hasActiveFilter());
+
+      // Fetch all events for this year with current filters
+      const params = new URLSearchParams();
+      params.set('start', `${year}-01-01`);
+      params.set('end',   `${year}-12-31`);
+      if (state.selectedQuarter)  params.set('quarter',  state.selectedQuarter);
+      if (state.selectedIndustry) params.set('industry', state.selectedIndustry);
+      if (state.selectedTickers.size) {
+        params.set('ticker', [...state.selectedTickers].join(','));
+      }
+
+      loadingOverlay.classList.remove('hidden');
+      let events = [];
+      try {
+        const res = await fetch(`${API}/api/earnings?${params}`);
+        if (res.ok) events = await res.json();
+      } catch (e) {
+        console.error('Year view fetch failed', e);
+      } finally {
+        loadingOverlay.classList.add('hidden');
+      }
+
+      // Update badge
+      eventCountBadge.textContent = `${events.length} event${events.length !== 1 ? 's' : ''}`;
+      eventCountBadge.classList.remove('hidden');
+
+      // Group events by date
+      const byDate = {};
+      for (const ev of events) {
+        if (!byDate[ev.start]) byDate[ev.start] = [];
+        byDate[ev.start].push(ev);
+      }
+
+      // Render 12 mini months
+      yearViewGrid.innerHTML = '';
+      for (let m = 0; m < 12; m++) {
+        yearViewGrid.appendChild(buildMiniMonth(year, m, byDate));
+      }
+    }
+
+    function buildMiniMonth(year, month, byDate) {
+      const MONTH_NAMES = ['January','February','March','April','May','June',
+                           'July','August','September','October','November','December'];
+      const DAY_LABELS  = ['S','M','T','W','T','F','S'];
+
+      const todayStr  = new Date().toISOString().split('T')[0];
+      const firstDay  = new Date(year, month, 1);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      const wrap = document.createElement('div');
+      wrap.className = 'year-mini-month';
+
+      // Month name header -- clicking jumps to month view
+      const header = document.createElement('div');
+      header.className = 'year-mini-month-header';
+      header.textContent = MONTH_NAMES[month];
+      header.addEventListener('click', () => {
+        switchFromYearView();
+        calendar.gotoDate(new Date(year, month, 1));
+        calendar.changeView('dayGridMonth');
+      });
+      wrap.appendChild(header);
+
+      // Day-of-week labels
+      const dayLabelRow = document.createElement('div');
+      dayLabelRow.className = 'grid grid-cols-7 text-center mb-0.5';
+      DAY_LABELS.forEach(d => {
+        const lbl = document.createElement('div');
+        lbl.className = 'text-[9px] text-gray-600 font-medium py-0.5';
+        lbl.textContent = d;
+        dayLabelRow.appendChild(lbl);
+      });
+      wrap.appendChild(dayLabelRow);
+
+      // Days grid
+      const grid = document.createElement('div');
+      grid.className = 'grid grid-cols-7';
+
+      // Leading empty cells
+      for (let i = 0; i < firstDay.getDay(); i++) {
+        grid.appendChild(document.createElement('div'));
+      }
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const mm      = String(month + 1).padStart(2, '0');
+        const dd      = String(d).padStart(2, '0');
+        const dateStr = `${year}-${mm}-${dd}`;
+        const evs     = byDate[dateStr] || [];
+        const isToday = dateStr === todayStr;
+
+        const cell = document.createElement('div');
+        cell.className = 'year-day-cell';
+
+        const num = document.createElement('div');
+        num.className = 'year-day-num' +
+          (isToday    ? ' is-today'   : '') +
+          (evs.length ? ' has-events' : '');
+        num.textContent = d;
+        cell.appendChild(num);
+
+        // Colored dots for each event (max 3 visible + overflow indicator)
+        if (evs.length) {
+          cell.classList.add('clickable');
+          const tipLines = evs.map(ev => {
+            const p = ev.extendedProps || {};
+            return `${p.ticker || ''} ${p.quarter || ''}`.trim();
+          });
+          cell.title = tipLines.join(', ');
+
+          const dotsRow = document.createElement('div');
+          dotsRow.className = 'year-dots';
+
+          const shown = evs.slice(0, 3);
+          shown.forEach(ev => {
+            const dot = document.createElement('div');
+            dot.className = 'year-dot';
+            dot.style.background = ev.backgroundColor || colorFor(ev.extendedProps?.industry);
+            dotsRow.appendChild(dot);
+          });
+          if (evs.length > 3) {
+            const overflow = document.createElement('div');
+            overflow.className = 'year-dot';
+            overflow.style.background = '#4b5563';
+            dotsRow.appendChild(overflow);
+          }
+          cell.appendChild(dotsRow);
+
+          // Clicking a day navigates to month view at that date
+          cell.addEventListener('click', () => {
+            switchFromYearView();
+            calendar.gotoDate(new Date(`${dateStr}T12:00:00`));
+            calendar.changeView('dayGridMonth');
+          });
+        }
+
+        grid.appendChild(cell);
+      }
+
+      wrap.appendChild(grid);
+      return wrap;
+    }
+
     // ── Calendar ──────────────────────────────────────────────────────────
     function buildFetchParams(fetchInfo) {
       const params = new URLSearchParams();
       params.set('start', fetchInfo.startStr.split('T')[0]);
       params.set('end',   fetchInfo.endStr.split('T')[0]);
 
-      if (state.selectedYear)    params.set('year',     state.selectedYear);
-      if (state.selectedQuarter) params.set('quarter',  state.selectedQuarter);
-      if (state.selectedIndustry)params.set('industry', state.selectedIndustry);
+      if (state.selectedYear)     params.set('year',     state.selectedYear);
+      if (state.selectedQuarter)  params.set('quarter',  state.selectedQuarter);
+      if (state.selectedIndustry) params.set('industry', state.selectedIndustry);
       if (state.selectedTickers.size) {
         params.set('ticker', [...state.selectedTickers].join(','));
       }
@@ -584,8 +835,6 @@
     }
 
     function initCalendar() {
-      const calendarEl = $('calendar');
-
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: window.innerWidth < 640 ? 'listMonth' : 'dayGridMonth',
         initialDate: new Date(),
@@ -593,7 +842,19 @@
         headerToolbar: {
           left:   'prev,next today',
           center: 'title',
-          right:  'dayGridMonth,dayGridWeek,listMonth',
+          right:  'yearViewBtn dayGridMonth,dayGridWeek,listMonth',
+        },
+        customButtons: {
+          yearViewBtn: {
+            text: 'Year',
+            click: () => {
+              if (state.inYearView) {
+                switchFromYearView();
+              } else {
+                switchToYearView();
+              }
+            },
+          },
         },
         buttonText: {
           today:       'Today',
@@ -604,6 +865,10 @@
         views: {
           dayGridWeek: { dayMaxEvents: false },
         },
+        // When the user clicks Month/Week/List while year view is active, exit year view
+        viewDidMount: () => {
+          if (state.inYearView) switchFromYearView();
+        },
         events: async (fetchInfo, successCb, failureCb) => {
           loadingOverlay.classList.remove('hidden');
           try {
@@ -611,8 +876,6 @@
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const events = await res.json();
             successCb(events);
-
-            // Update badge
             eventCountBadge.textContent = `${events.length} event${events.length !== 1 ? 's' : ''}`;
             eventCountBadge.classList.remove('hidden');
           } catch (err) {
@@ -641,12 +904,12 @@
         eventClick: showModal,
         eventDidMount: (info) => {
           const p = info.event.extendedProps;
-          info.el.title = `${p.company} — ${p.quarter || ''} ${p.fiscal_year || ''}`.trim();
+          info.el.title = `${p.company} - ${p.quarter || ''} ${p.fiscal_year || ''}`.trim();
         },
         dayMaxEvents: 4,
         moreLinkClick: 'popover',
         nowIndicator: true,
-        weekends: false,  // Earnings rarely reported on weekends
+        weekends: false,
         businessHours: false,
         eventOrder: 'rank',
         noEventsText: 'No earnings found for this period & filter.',
@@ -662,36 +925,26 @@
       state.currentEvent = p;
 
       const color = event.backgroundColor || colorFor(p.industry);
+      $('modalColorDot').style.background  = color;
+      $('modalTitle').textContent          = p.company || p.ticker;
+      $('modalSubtitle').textContent       = formatDate(event.startStr);
 
-      $('modalColorDot').style.background = color;
-      $('modalTitle').textContent         = p.company || p.ticker;
-      $('modalSubtitle').textContent      = formatDate(event.startStr);
-
-      const eps_est = p.eps_estimate != null
-        ? `$${Number(p.eps_estimate).toFixed(2)}`
-        : 'N/A';
-      const eps_act = p.actual_eps != null
-        ? `$${Number(p.actual_eps).toFixed(2)}`
-        : 'Pending';
+      const eps_est = p.eps_estimate != null ? `$${Number(p.eps_estimate).toFixed(2)}` : 'N/A';
+      const eps_act = p.actual_eps   != null ? `$${Number(p.actual_eps).toFixed(2)}`   : 'Pending';
 
       $('modalBody').innerHTML = `
         ${field('Ticker',       `<span class="font-mono font-bold text-indigo-400">${p.ticker}</span>`)}
-        ${field('Quarter',      p.quarter ? `${p.quarter} FY${p.fiscal_year}` : '—')}
-        ${field('Industry',     p.industry || '—')}
-        ${field('F500 Rank',    p.rank ? `#${p.rank}` : '—')}
+        ${field('Quarter',      p.quarter ? `${p.quarter} FY${p.fiscal_year}` : '-')}
+        ${field('Industry',     p.industry || '-')}
+        ${field('F500 Rank',    p.rank ? `#${p.rank}` : '-')}
         ${field('EPS Estimate', eps_est)}
         ${field('Actual EPS',   eps_act)}
         ${field('Date',         formatDate(event.startStr))}
         ${field('Source',       p.source || 'seed')}
       `;
 
-      const yahooTicker = p.ticker.replace('.', '-');
-      $('modalYahooLink').href = `https://finance.yahoo.com/quote/${yahooTicker}/`;
-
-      $('filterToTicker').onclick = () => {
-        addTicker(p.ticker);
-        closeModal();
-      };
+      $('modalYahooLink').href = `https://finance.yahoo.com/quote/${p.ticker.replace('.', '-')}/`;
+      $('filterToTicker').onclick = () => { addTicker(p.ticker); closeModal(); };
 
       modal.classList.remove('hidden');
       document.body.style.overflow = 'hidden';
@@ -707,7 +960,7 @@
     }
 
     function formatDate(iso) {
-      if (!iso) return '—';
+      if (!iso) return '-';
       const d = new Date(iso + 'T12:00:00');
       return d.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
     }
@@ -722,16 +975,13 @@
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-    // ── Boot sequence ─────────────────────────────────────────────────────
+    // ── Boot ─────────────────────────────────────────────────────────────
     async function init() {
       applyDarkMode();
       populateYears();
       styleQuarterBtns();
       renderLegend();
-
-      // Load reference data in parallel
       await Promise.all([loadCompanies(), populateIndustries()]);
-
       initCalendar();
     }
 
