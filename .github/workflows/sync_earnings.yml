@@ -1,0 +1,38 @@
+name: Sync Earnings Data
+
+on:
+  schedule:
+    # Every Monday at 6 AM UTC -- catches weekend earnings announcements
+    # and refreshes the week's upcoming dates before market open
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    # Allow manual trigger from the GitHub Actions UI at any time
+
+jobs:
+  sync:
+    name: Fetch Yahoo Finance earnings -> MongoDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch earnings from Yahoo Finance
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+        run: python scripts/fetch_earnings.py
+
+      - name: Report completion
+        if: always()
+        run: echo "Sync job finished with status ${{ job.status }}"
