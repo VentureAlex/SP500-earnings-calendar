@@ -1,13 +1,9 @@
 """
-Fortune 500 Earnings Calendar — FastAPI backend.
+Fortune 500 Earnings Calendar -- FastAPI backend.
 
-Serves JSON for the FullCalendar frontend and static HTML in local dev.
-On Vercel: static files are served by Vercel CDN; only the /api/* routes
-           hit this serverless function.
+Serves JSON for the FullCalendar frontend.
+On Vercel: static files served by Vercel CDN; only /api/* routes hit this function.
 Locally:   StaticFiles mount at "/" makes `python run.py` self-contained.
-
-Scaling path: swap SQLite for Postgres by changing DATABASE_PATH to a
-              connection string and the sqlite3 calls to asyncpg/SQLAlchemy.
 """
 
 from __future__ import annotations
@@ -19,11 +15,11 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
-from .database import ensure_seeded, get_db
+from .database import companies_col, earnings_col, ensure_seeded
 
 load_dotenv()
 
@@ -33,7 +29,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Fortune 500 Earnings Calendar",
     description="Earnings dates for Fortune 500 companies",
-    version="1.0.0",
+    version="2.0.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
 )
@@ -56,20 +52,20 @@ async def startup_event():
 # ---------------------------------------------------------------------------
 
 _INDUSTRY_COLORS: dict[str, str] = {
-    "Technology":              "#6366f1",  # indigo
-    "Healthcare":              "#10b981",  # emerald
-    "Financials":              "#f59e0b",  # amber
-    "Energy":                  "#ef4444",  # red
-    "Retail":                  "#8b5cf6",  # violet
-    "Consumer":                "#ec4899",  # pink
-    "Automotive":              "#14b8a6",  # teal
-    "Telecommunications":      "#3b82f6",  # blue
-    "Media":                   "#f97316",  # orange
-    "Industrial":              "#64748b",  # slate
-    "Aerospace":               "#0ea5e9",  # sky
-    "Logistics":               "#a855f7",  # purple
-    "Real Estate":             "#84cc16",  # lime
-    "default":                 "#6b7280",  # gray
+    "Technology":         "#6366f1",
+    "Healthcare":         "#10b981",
+    "Financials":         "#f59e0b",
+    "Energy":             "#ef4444",
+    "Retail":             "#8b5cf6",
+    "Consumer":           "#ec4899",
+    "Automotive":         "#14b8a6",
+    "Telecommunications": "#3b82f6",
+    "Media":              "#f97316",
+    "Industrial":         "#64748b",
+    "Aerospace":          "#0ea5e9",
+    "Logistics":          "#a855f7",
+    "Real Estate":        "#84cc16",
+    "default":            "#6b7280",
 }
 
 
@@ -86,17 +82,17 @@ def _color_for(industry: str | None) -> str:
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "2.0.0"}
 
 
 @app.get("/api/companies")
 def list_companies():
-    """All companies — used for ticker autocomplete and industry filter."""
-    with get_db() as conn:
-        rows = conn.execute(
-            "SELECT ticker, name, industry, rank FROM companies ORDER BY rank"
-        ).fetchall()
-    return [dict(r) for r in rows]
+    """All companies -- used for ticker autocomplete and industry filter."""
+    rows = companies_col().find(
+        {},
+        {"_id": 0, "ticker": 1, "name": 1, "industry": 1, "rank": 1},
+    ).sort("rank", 1)
+    return list(rows)
 
 
 @app.get("/api/earnings")
@@ -111,77 +107,59 @@ def list_earnings(
     """
     Return earnings events formatted for FullCalendar.
 
-    FullCalendar calls this with `start` / `end` on each calendar navigation.
+    FullCalendar calls this with start/end on each calendar navigation.
     Additional filters narrow results for the sidebar filters.
     """
     today = date.today()
     start_date = start or today.isoformat()
     end_date = end or (today + timedelta(days=365)).isoformat()
 
-    sql = """
-        SELECT e.id, e.ticker, e.date, e.quarter, e.fiscal_year,
-               e.eps_estimate, e.actual_eps, e.source,
-               c.name, c.industry, c.rank
-        FROM earnings e
-        LEFT JOIN companies c ON e.ticker = c.ticker
-        WHERE e.date >= ? AND e.date <= ?
-    """
-    params: list = [start_date, end_date]
+    query: dict = {
+        "date": {"$gte": start_date, "$lte": end_date},
+    }
 
     if ticker:
         tickers = [t.strip().upper() for t in ticker.split(",") if t.strip()]
         if tickers:
-            placeholders = ",".join("?" * len(tickers))
-            sql += f" AND e.ticker IN ({placeholders})"
-            params.extend(tickers)
+            query["ticker"] = {"$in": tickers}
 
     if year:
-        sql += " AND e.fiscal_year = ?"
-        params.append(year)
+        query["fiscal_year"] = year
 
     if quarter:
-        sql += " AND e.quarter = ?"
-        params.append(quarter.upper())
+        query["quarter"] = quarter.upper()
 
     if industry:
-        sql += " AND c.industry LIKE ?"
-        params.append(f"%{industry}%")
+        query["industry"] = {"$regex": industry, "$options": "i"}
 
-    sql += " ORDER BY e.date, c.rank"
-
-    with get_db() as conn:
-        rows = conn.execute(sql, params).fetchall()
+    rows = earnings_col().find(query, {"_id": 0}).sort("date", 1)
 
     events = []
-    for row in rows:
-        r = dict(row)
-        company = r.get("name") or r["ticker"]
+    for r in rows:
         title = r["ticker"]
         if r.get("quarter"):
             title += f" {r['quarter']}"
 
         color = _color_for(r.get("industry"))
-        events.append(
-            {
-                "id": str(r["id"]),
-                "title": title,
-                "start": r["date"],
-                "backgroundColor": color,
-                "borderColor": color,
-                "textColor": "#ffffff",
-                "extendedProps": {
-                    "ticker":       r["ticker"],
-                    "company":      company,
-                    "quarter":      r.get("quarter"),
-                    "fiscal_year":  r.get("fiscal_year"),
-                    "eps_estimate": r.get("eps_estimate"),
-                    "actual_eps":   r.get("actual_eps"),
-                    "industry":     r.get("industry"),
-                    "rank":         r.get("rank"),
-                    "source":       r.get("source"),
-                },
-            }
-        )
+        events.append({
+            "id":              r["ticker"] + r["date"],
+            "title":           title,
+            "start":           r["date"],
+            "backgroundColor": color,
+            "borderColor":     color,
+            "textColor":       "#ffffff",
+            "extendedProps": {
+                "ticker":       r["ticker"],
+                "company":      r.get("company_name") or r["ticker"],
+                "quarter":      r.get("quarter"),
+                "fiscal_year":  r.get("fiscal_year"),
+                "eps_estimate": r.get("eps_estimate"),
+                "actual_eps":   r.get("actual_eps"),
+                "industry":     r.get("industry"),
+                "rank":         r.get("company_rank"),
+                "source":       r.get("source"),
+            },
+        })
 
     return events
 
@@ -189,15 +167,11 @@ def list_earnings(
 @app.get("/api/industries")
 def list_industries():
     """Distinct industries for the filter dropdown."""
-    with get_db() as conn:
-        rows = conn.execute(
-            "SELECT DISTINCT industry FROM companies WHERE industry IS NOT NULL ORDER BY industry"
-        ).fetchall()
-    return [r["industry"] for r in rows]
+    return sorted(companies_col().distinct("industry"))
 
 
 # ---------------------------------------------------------------------------
-# Static files (local dev only — Vercel CDN handles this in production)
+# Static files (local dev only -- Vercel CDN handles this in production)
 # ---------------------------------------------------------------------------
 
 _public_dir = Path(__file__).parent.parent / "public"
