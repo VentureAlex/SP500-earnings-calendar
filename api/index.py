@@ -87,12 +87,16 @@ def health():
 
 @app.get("/api/companies")
 def list_companies():
-    """All companies -- used for ticker autocomplete and industry filter."""
+    """All companies -- used for ticker dropdown and industry filter."""
+    tickers_with_earnings = set(earnings_col().distinct("ticker"))
     rows = companies_col().find(
         {},
         {"_id": 0, "ticker": 1, "name": 1, "industry": 1, "rank": 1},
     ).sort("rank", 1)
-    return list(rows)
+    return [
+        {**doc, "has_earnings": doc["ticker"] in tickers_with_earnings}
+        for doc in rows
+    ]
 
 
 @app.get("/api/earnings")
@@ -167,7 +171,7 @@ def list_earnings(
 @app.get("/api/industries")
 def list_industries():
     """Distinct industries for the filter dropdown."""
-    return sorted(companies_col().distinct("industry"))
+    return sorted(i for i in companies_col().distinct("industry") if i)
 
 
 # ---------------------------------------------------------------------------
