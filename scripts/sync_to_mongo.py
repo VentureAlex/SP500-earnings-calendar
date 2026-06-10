@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-MongoDB maintenance script for Fortune 500 Earnings Calendar.
+MongoDB maintenance script for S&P 500 Earnings Calendar.
 
-Seeds the database from fortune500_seed.csv (if empty) and optionally
+Seeds the database from sp500_seed.csv (if empty) and optionally
 prunes stale past-earnings documents ahead of the automatic TTL cleanup.
 
 Usage:
@@ -47,7 +47,7 @@ def main():
     if args.reseed:
         os.environ["FORCE_RESEED"] = "true"
 
-    print("=== Fortune 500 Earnings -- MongoDB maintenance ===")
+    print("=== S&P 500 Earnings -- MongoDB maintenance ===")
     ensure_seeded()
 
     if args.prune:

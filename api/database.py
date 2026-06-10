@@ -26,7 +26,7 @@ except ImportError as exc:
 
 logger = logging.getLogger(__name__)
 
-SEED_CSV = Path(__file__).parent.parent / "data" / "fortune500_seed.csv"
+SEED_CSV = Path(__file__).parent.parent / "data" / "sp500_seed.csv"
 
 # ---------------------------------------------------------------------------
 # Connection management
@@ -49,7 +49,7 @@ def _get_client() -> MongoClient:
 
 
 def _get_db() -> Database:
-    db_name = os.environ.get("MONGODB_DB", "fortune500")
+    db_name = os.environ.get("MONGODB_DB", "sp500")
     return _get_client()[db_name]
 
 

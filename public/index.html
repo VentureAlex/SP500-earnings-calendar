@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fortune 500 Earnings Calendar</title>
+  <title>S&P 500 Earnings Calendar</title>
 
   <script>
     tailwind.config = {
@@ -192,7 +192,7 @@
           F5
         </div>
         <div>
-          <h1 class="font-bold text-base leading-tight">Fortune 500</h1>
+          <h1 class="font-bold text-base leading-tight">S&amp;P 500</h1>
           <p class="text-xs text-gray-400 leading-tight">Earnings Calendar</p>
         </div>
       </div>
@@ -908,7 +908,7 @@
         ${field('Ticker',       `<span class="font-mono font-bold text-indigo-400">${p.ticker}</span>`)}
         ${field('Quarter',      p.quarter ? `${p.quarter} FY${p.fiscal_year}` : '-')}
         ${field('Industry',     p.industry || '-')}
-        ${field('F500 Rank',    p.rank ? `#${p.rank}` : '-')}
+        ${field('S&P Rank',     p.rank ? `#${p.rank}` : '-')}
         ${field('EPS Estimate', eps_est)}
         ${field('Actual EPS',   eps_act)}
         ${field('Date',         formatDate(event.startStr))}

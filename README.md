@@ -1,22 +1,18 @@
-# Fortune 500 Earnings Calendar
+# S&P 500 Earnings Calendar
 
-A responsive single-page web app displaying earnings announcement dates for Fortune 500 companies, built on FastAPI + SQLite + FullCalendar.js.
-
-## Live Demo
-
-Deployed at: **https://fortune500-earnings.vercel.app** *(after your first Vercel deploy)*
+A responsive single-page web app displaying real earnings announcement dates for S&P 500 companies, built on FastAPI + MongoDB + FullCalendar.js.
 
 ---
 
 ## Features
 
-- Interactive month / week / list calendar views (FullCalendar 6)
-- Filter by year, fiscal quarter, industry, and ticker symbol
+- Interactive month / week / list / year calendar views (FullCalendar 6)
+- Filter by year, fiscal quarter, industry (GICS sector), and ticker
+- Alphabetical ticker dropdown — greyed out when no earnings data available
 - Color-coded events by industry with a legend
-- Event detail modal with EPS estimates, Yahoo Finance link
+- Event detail modal with EPS estimates and Yahoo Finance link
 - Dark / light mode (persisted in localStorage)
 - Mobile-responsive with collapsible sidebar
-- Auto-seeds database with synthetic data for 65 Fortune 500 companies on first run
 
 ---
 
@@ -28,22 +24,27 @@ Deployed at: **https://fortune500-earnings.vercel.app** *(after your first Verce
 │   └── index.html          # Single-page frontend (Tailwind + FullCalendar CDN)
 ├── api/
 │   ├── index.py            # FastAPI app — serves /api/* routes
-│   └── database.py         # SQLite helpers, schema, auto-seed logic
+│   └── database.py         # MongoDB helpers, indexes, seeding logic
 ├── scripts/
-│   ├── seed_data.py        # Seed DB from fortune500_seed.csv
-│   ├── update_companies.py # Refresh Fortune 500 list from live source
-│   └── fetch_earnings.py   # Fetch real earnings (FMP / API-Ninjas / Yahoo)
+│   ├── update_companies.py # Refresh S&P 500 list (slickcharts + Wikipedia GICS sectors)
+│   ├── fetch_earnings.py   # Fetch real earnings dates from Yahoo Finance
+│   ├── seed_data.py        # One-shot DB bootstrap
+│   └── sync_to_mongo.py    # MongoDB maintenance (prune, stats)
 ├── data/
-│   └── fortune500_seed.csv # 65-company seed dataset
+│   └── sp500_seed.csv      # Fallback seed dataset (used if slickcharts is unreachable)
+├── .github/workflows/
+│   ├── sync_earnings.yml       # Weekly: refresh companies + fetch earnings (Monday 6 AM UTC)
+│   └── update_companies.yml    # Monthly: full company list refresh (1st of month, 5 AM UTC)
 ├── run.py                  # Local dev server (uvicorn)
 ├── vercel.json             # Vercel routing config
 └── requirements.txt
 ```
 
 **Data flow:**
-1. On startup, `database.py` creates the SQLite schema and seeds it from `fortune500_seed.csv` if the DB is empty.
-2. The frontend fetches `/api/earnings?start=…&end=…&[filters]` on every calendar navigation.
-3. Scripts in `scripts/` can be run independently (or scheduled) to pull live data.
+1. `update_companies.py` scrapes slickcharts.com for the S&P 500 list and Wikipedia for GICS sector data, then upserts into MongoDB.
+2. `fetch_earnings.py` calls Yahoo Finance (via yfinance) for each company and stores real upcoming earnings dates. A 7-day skip gate prevents re-fetching companies updated within the last week.
+3. The frontend fetches `/api/earnings?start=…&end=…&[filters]` on every calendar navigation.
+4. GitHub Actions keeps the data fresh automatically (weekly + monthly).
 
 ---
 
@@ -52,127 +53,67 @@ Deployed at: **https://fortune500-earnings.vercel.app** *(after your first Verce
 ### Prerequisites
 
 - Python 3.11+
-- pip
+- MongoDB Atlas cluster (free M0 tier is sufficient)
 
 ### 1. Clone & install
 
 ```bash
-git clone https://github.com/VentureAlex/fortune500-earnings-calendar.git
-cd fortune500-earnings-calendar
+git clone https://github.com/VentureAlex/sp500-earnings-calendar.git
+cd sp500-earnings-calendar
 pip install -r requirements.txt
 ```
 
-### 2. Configure (optional — seed data works without any API keys)
+### 2. Configure
 
 ```bash
 cp .env.example .env
-# Edit .env and add your API keys if you want real earnings data
+# Fill in MONGODB_URI with your Atlas connection string
+# MONGODB_DB defaults to "sp500"
 ```
 
-### 3. Run
+### 3. Populate the database
+
+```bash
+python scripts/update_companies.py   # ~500 companies + GICS sectors
+python scripts/fetch_earnings.py     # real Yahoo Finance earnings dates
+```
+
+### 4. Run
 
 ```bash
 python run.py
 ```
 
-Open **http://localhost:8000** — the DB is auto-seeded on first launch.
+Open **http://localhost:8000**
 
 ---
 
-## Loading Real Earnings Data
+## Scheduled Refresh (GitHub Actions)
 
-The app ships with synthetic earnings dates (generated from industry timing patterns). To pull real data:
+Two workflows keep data current automatically. Add these secrets to your GitHub repo:
 
-### Option A — Financial Modeling Prep (250 req/day free)
+| Secret | Value |
+|--------|-------|
+| `MONGODB_URI` | Your Atlas connection string |
+| `MONGODB_DB` | `sp500` |
 
-1. Get a free key at https://financialmodelingprep.com/developer
-2. Add `FMP_API_KEY=<key>` to `.env`
-3. Run:
-   ```bash
-   python scripts/fetch_earnings.py --source fmp
-   ```
+| Workflow | Schedule | What it does |
+|----------|----------|-------------|
+| `sync_earnings.yml` | Every Monday 6 AM UTC | Updates company list + fetches Yahoo Finance earnings |
+| `update_companies.yml` | 1st of every month 5 AM UTC | Full company list refresh + earnings fetch |
 
-### Option B — API-Ninjas (10,000 req/month free)
-
-1. Get a free key at https://api-ninjas.com
-2. Add `API_NINJAS_KEY=<key>` to `.env`
-3. Run:
-   ```bash
-   python scripts/fetch_earnings.py --source ninjas
-   ```
-
-### Option C — Yahoo Finance (no key required)
-
-```bash
-python scripts/fetch_earnings.py --source yahoo
-```
-*Rate-limited to 1 request/3s automatically.*
-
-### Refreshing the Fortune 500 list
-
-```bash
-python scripts/update_companies.py
-```
+Both workflows can also be triggered manually from the GitHub Actions UI.
 
 ---
 
 ## Deploy to Vercel
 
-### One-click via GitHub integration
-
-1. Push this repo to GitHub (already done if you're reading this on GitHub)
+1. Push this repo to GitHub
 2. Go to https://vercel.com/new → Import your GitHub repo
-3. Vercel auto-detects the Python + static config from `vercel.json`
+3. Add environment variables in Vercel project settings:
+   - `MONGODB_URI` — your Atlas connection string
+   - `MONGODB_DB` — `sp500`
 4. Click **Deploy**
-
-### Via Vercel CLI
-
-```bash
-npm i -g vercel
-vercel --prod
-```
-
-> **Note on persistence:** Vercel serverless functions are stateless. The SQLite DB lives in `/tmp` and is re-seeded (from the CSV bundled in the repo) on each cold start. For persistent real data:
-> - Connect to a hosted Postgres (Neon / Supabase / Railway — all have free tiers)
-> - Or run the fetch scripts locally and commit the generated DB (not recommended for large datasets)
-
----
-
-## Scheduled Data Refresh (GitHub Actions)
-
-Add `.github/workflows/refresh.yml`:
-
-```yaml
-name: Refresh Earnings Data
-on:
-  schedule:
-    - cron: '0 6 * * 1'  # Every Monday at 6 AM UTC
-
-jobs:
-  refresh:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
-      - run: pip install -r requirements.txt
-      - run: python scripts/update_companies.py
-      - run: python scripts/fetch_earnings.py
-        env:
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-```
-
----
-
-## Scaling Notes
-
-| Concern | Current (POC) | Production path |
-|---------|--------------|-----------------|
-| Database | SQLite (file-based) | Postgres (Neon, Supabase, Railway) |
-| Data source | Synthetic seed + free APIs | Paid FMP / Polygon.io tier |
-| Scheduling | Manual scripts | GitHub Actions / Railway cron |
-| Auth | None | Clerk / Auth0 for private deployments |
-| Frontend | CDN-loaded FullCalendar | Vite + React for SSR/better perf |
 
 ---
 

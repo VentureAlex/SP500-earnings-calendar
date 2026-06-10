@@ -1,5 +1,5 @@
 """
-Fortune 500 Earnings Calendar -- FastAPI backend.
+S&P 500 Earnings Calendar -- FastAPI backend.
 
 Serves JSON for the FullCalendar frontend.
 On Vercel: static files served by Vercel CDN; only /api/* routes hit this function.
@@ -27,8 +27,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(messa
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Fortune 500 Earnings Calendar",
-    description="Earnings dates for Fortune 500 companies",
+    title="S&P 500 Earnings Calendar",
+    description="Earnings dates for S&P 500 companies",
     version="2.0.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",

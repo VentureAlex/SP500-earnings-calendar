@@ -2,7 +2,7 @@
 """
 Seed the database with S&P 500 companies.
 
-Tries slickcharts.com first; falls back to the local fortune500_seed.csv
+Tries slickcharts.com first; falls back to the local sp500_seed.csv
 if the network is unavailable.
 
 Earnings come exclusively from Yahoo Finance (run fetch_earnings.py after this).

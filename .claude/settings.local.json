@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -C /Users/allee/Documents/GitHub/VentureAlex/claude remote -v)"
+      "Bash(git -C /Users/allee/Documents/GitHub/VentureAlex/claude remote -v)",
+      "Bash(git -C /Users/allee/Code/venturealex/fortune500-earnings-calendar mv data/fortune500_seed.csv data/sp500_seed.csv)"
     ]
   }
 }
