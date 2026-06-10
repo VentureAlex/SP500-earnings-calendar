@@ -542,7 +542,13 @@
         sorted.forEach(c => {
           const opt = document.createElement('option');
           opt.value = c.ticker;
-          opt.textContent = `${c.ticker} — ${c.name}`;
+          opt.textContent = c.has_earnings
+            ? `${c.ticker} — ${c.name}`
+            : `${c.ticker} — ${c.name} (no data)`;
+          if (!c.has_earnings) {
+            opt.disabled = true;
+            opt.style.color = '#6b7280';
+          }
           tickerSelect.appendChild(opt);
         });
       } catch (e) {
