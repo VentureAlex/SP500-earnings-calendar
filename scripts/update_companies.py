@@ -116,10 +116,6 @@ def update_companies() -> None:
         result.matched_count,
     )
 
-    # Generate synthetic earnings for any company that has none yet
-    from api.database import seed_earnings_for_all_companies
-    seed_earnings_for_all_companies()
-
 
 if __name__ == "__main__":
     update_companies()
