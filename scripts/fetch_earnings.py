@@ -5,15 +5,15 @@ Fetch real earnings dates from Yahoo Finance and write to MongoDB.
 yfinance handles Yahoo's session/cookie requirements automatically
 (no API key needed).
 
-Data written per ticker:
-  - Next earnings date
-  - EPS estimate (analyst consensus average)
+Skip logic: if a company's last_yahoo_fetch is within 7 days, skip it
+to avoid hammering Yahoo Finance unnecessarily.
 
 Run:     python scripts/fetch_earnings.py
 Options: --dry-run               print results without writing to DB
          --ticker AAPL MSFT ...  fetch specific tickers only
          --delay 0.5             seconds between requests (default 0.5)
          --no-prune              skip pruning past unconfirmed records
+         --force                 ignore last_yahoo_fetch and re-fetch all
 """
 
 import argparse
@@ -21,7 +21,7 @@ import logging
 import os
 import sys
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -33,23 +33,18 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
 
+_SKIP_WINDOW = timedelta(days=7)
+_MAX_RETRIES = 3
 
-def fetch_yahoo_earnings(ticker: str) -> dict | None:
+
+def _fetch_calendar(ticker: str) -> dict | None:
     """
-    Fetch the next earnings date + EPS estimate for a single ticker via yfinance.
-
-    Returns:
-      {"ticker": "AAPL", "date": "2026-07-30", "eps_estimate": 1.90, "source": "yahoo"}
-    or None if no upcoming data is available.
+    Call yfinance for a single ticker. Returns the raw calendar dict or None if
+    no upcoming earnings exist. Raises on network/API errors so callers can retry.
     """
     import yfinance as yf
 
-    try:
-        cal = yf.Ticker(ticker).calendar
-    except Exception as e:
-        logger.warning("  %s: yfinance error - %s", ticker, e)
-        return None
-
+    cal = yf.Ticker(ticker).calendar
     if not cal or not cal.get("Earnings Date"):
         return None
 
@@ -65,6 +60,25 @@ def fetch_yahoo_earnings(ticker: str) -> dict | None:
         "eps_estimate": cal.get("Earnings Average"),
         "source":       "yahoo",
     }
+
+
+def fetch_yahoo_earnings(ticker: str) -> dict | None:
+    """
+    Fetch earnings for a ticker with exponential backoff retry.
+    Returns a result dict, or None if no upcoming data (after all retries).
+    """
+    for attempt in range(_MAX_RETRIES):
+        try:
+            return _fetch_calendar(ticker)
+        except Exception as exc:
+            if attempt < _MAX_RETRIES - 1:
+                wait = 2 ** attempt  # 1s, 2s
+                logger.warning("  %s: error on attempt %d, retrying in %ds — %s",
+                               ticker, attempt + 1, wait, exc)
+                time.sleep(wait)
+            else:
+                logger.warning("  %s: failed after %d attempts — %s", ticker, _MAX_RETRIES, exc)
+    return None
 
 
 def upsert_earning(row: dict, dry_run: bool = False) -> None:
@@ -107,6 +121,31 @@ def upsert_earning(row: dict, dry_run: bool = False) -> None:
     )
 
 
+def mark_fetched(ticker: str, dry_run: bool = False) -> None:
+    """Stamp last_yahoo_fetch on the company so we skip it for the next 7 days."""
+    if dry_run:
+        return
+    from api.database import companies_col
+    companies_col().update_one(
+        {"ticker": ticker},
+        {"$set": {"last_yahoo_fetch": datetime.now(timezone.utc)}},
+    )
+
+
+def should_skip(ticker: str, force: bool) -> bool:
+    """Return True if this ticker was fetched within the last 7 days."""
+    if force:
+        return False
+    from api.database import companies_col
+    doc = companies_col().find_one({"ticker": ticker}, {"last_yahoo_fetch": 1})
+    if not doc:
+        return False
+    last = doc.get("last_yahoo_fetch")
+    if not last:
+        return False
+    return (datetime.now(timezone.utc) - last) < _SKIP_WINDOW
+
+
 def prune_past_earnings(dry_run: bool = False) -> None:
     """
     Remove unconfirmed Yahoo earnings whose date has passed.
@@ -143,11 +182,12 @@ def main():
                         help="Print results without writing to DB")
     parser.add_argument("--no-prune", action="store_true",
                         help="Skip pruning past unconfirmed records")
+    parser.add_argument("--force", action="store_true",
+                        help="Ignore last_yahoo_fetch and re-fetch all tickers")
     args = parser.parse_args()
 
     from api.database import companies_col, ensure_seeded
 
-    # Ensure companies exist before fetching earnings for them
     ensure_seeded()
 
     if not args.no_prune:
@@ -161,11 +201,18 @@ def main():
             for c in companies_col().find({}, {"ticker": 1, "_id": 0}).sort("rank", 1)
         ]
 
-    logger.info("Fetching Yahoo Finance earnings for %d tickers...", len(tickers))
+    logger.info("Processing %d tickers (7-day skip gate %s)...",
+                len(tickers), "DISABLED" if args.force else "active")
 
-    saved = skipped = 0
+    saved = skipped = throttled = 0
     for i, ticker in enumerate(tickers, 1):
+        if should_skip(ticker, args.force):
+            logger.debug("  [%d/%d] %-8s -> skipped (fetched within 7 days)", i, len(tickers), ticker)
+            throttled += 1
+            continue
+
         result = fetch_yahoo_earnings(ticker)
+        mark_fetched(ticker, dry_run=args.dry_run)
 
         if result:
             upsert_earning(result, dry_run=args.dry_run)
@@ -180,7 +227,8 @@ def main():
         if i < len(tickers):
             time.sleep(args.delay)
 
-    logger.info("Done. %d saved, %d skipped.", saved, skipped)
+    logger.info("Done. %d saved, %d no data, %d skipped (within 7 days).",
+                saved, skipped, throttled)
 
 
 if __name__ == "__main__":

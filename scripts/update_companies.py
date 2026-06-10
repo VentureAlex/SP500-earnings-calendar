@@ -1,26 +1,16 @@
 #!/usr/bin/env python3
 """
-Refresh the Fortune 500 company list from a live source.
+Refresh the S&P 500 company list from slickcharts.com and upsert into MongoDB.
 
-Sources tried in order:
-  1. Public GitHub CSV (datasets/fortune500) — stable, no auth required
-  2. 50pros.com table scrape — fallback
+Run:      python scripts/update_companies.py
+Schedule: 1st of each month via .github/workflows/update_companies.yml
 
-After fetching, companies no longer in the list are purged along with their
-earnings records (via ON DELETE CASCADE).
-
-Run: python scripts/update_companies.py
-Schedule: monthly via GitHub Actions or cron (see .github/workflows/).
-
-Scaling note: point SOURCE_URL at your own curated CSV in an S3 bucket or
-              a private data API to remove the public-scrape dependency.
+Companies no longer in the S&P 500 are removed along with their earnings records.
 """
 
+import logging
 import sys
 import os
-import csv
-import io
-import logging
 import time
 
 import requests
@@ -34,121 +24,97 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
 
-# Public GitHub CSV maintained by the community
-GITHUB_CSV_URL = (
-    "https://raw.githubusercontent.com/datasets/fortune500/main/data/fortune500.csv"
-)
-FIFTY_PROS_URL = "https://www.50pros.com/fortune500"
+SLICKCHARTS_URL = "https://www.slickcharts.com/sp500"
+_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SP500EarningsCalendar/1.0)"}
 
 
-def fetch_from_github() -> list[dict]:
-    """Try to pull from the datasets/fortune500 GitHub CSV."""
-    logger.info("Fetching Fortune 500 list from GitHub CSV…")
-    resp = requests.get(GITHUB_CSV_URL, timeout=15)
-    resp.raise_for_status()
-    reader = csv.DictReader(io.StringIO(resp.text))
-    rows = list(reader)
-    logger.info("Got %d rows from GitHub CSV", len(rows))
-    return rows
-
-
-def fetch_from_50pros() -> list[dict]:
-    """Scrape 50pros.com as a fallback."""
-    logger.info("Scraping 50pros.com Fortune 500 table…")
-    headers = {"User-Agent": "Mozilla/5.0 (Fortune500EarningsCalendar/1.0)"}
-    resp = requests.get(FIFTY_PROS_URL, headers=headers, timeout=20)
+def fetch_from_slickcharts() -> list[dict]:
+    """Scrape the S&P 500 table from slickcharts.com."""
+    logger.info("Fetching S&P 500 list from slickcharts.com...")
+    resp = requests.get(SLICKCHARTS_URL, headers=_HEADERS, timeout=20)
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, "lxml")
     table = soup.find("table")
     if not table:
-        raise ValueError("Could not find table on 50pros.com")
+        raise ValueError("Could not find table on slickcharts.com")
 
-    headers_row = [th.get_text(strip=True).lower() for th in table.find_all("th")]
+    tbody = table.find("tbody")
+    if not tbody:
+        raise ValueError("Table has no tbody on slickcharts.com")
+
     rows = []
-    for tr in table.find_all("tr")[1:]:
+    for i, tr in enumerate(tbody.find_all("tr"), start=1):
         cells = [td.get_text(strip=True) for td in tr.find_all("td")]
-        if len(cells) >= 2:
-            row = dict(zip(headers_row, cells))
-            rows.append(row)
+        if len(cells) < 3:
+            continue
+        # Columns: #, Company, Symbol, Weight, Price, Chg, % Chg
+        ticker = cells[2].upper().replace(".", "-")  # BRK.B -> BRK-B
+        name = cells[1]
+        if not ticker or not name:
+            continue
+        rows.append({"rank": i, "name": name, "ticker": ticker})
 
-    logger.info("Got %d rows from 50pros.com scrape", len(rows))
+    logger.info("Parsed %d companies from slickcharts.com", len(rows))
+    if len(rows) < 400:
+        raise ValueError(f"Only got {len(rows)} rows — page structure may have changed")
+
     return rows
 
 
-def normalize_row(row: dict) -> dict | None:
-    """Map various CSV column names to our schema fields."""
-    def get(*keys):
-        for k in keys:
-            v = row.get(k) or row.get(k.lower()) or row.get(k.upper())
-            if v:
-                return str(v).strip()
-        return None
-
-    ticker = get("ticker", "symbol", "stock")
-    name = get("company", "name", "company name")
-    rank_raw = get("rank", "fortune rank", "#")
-    industry = get("industry", "sector", "industry sector")
-
-    if not ticker or not name:
-        return None
-
-    try:
-        rank = int(str(rank_raw).replace(",", "")) if rank_raw else None
-    except ValueError:
-        rank = None
-
-    return {"ticker": ticker.upper(), "name": name, "rank": rank, "industry": industry}
-
-
-def update_companies():
-    from api.database import init_db, get_db
+def update_companies() -> None:
+    from api.database import init_db, companies_col, earnings_col
+    from pymongo import UpdateOne
 
     init_db()
 
-    # Try GitHub first, fall back to scrape
-    raw_rows: list[dict] = []
-    for attempt in (fetch_from_github, fetch_from_50pros):
+    for attempt in range(3):
         try:
-            raw_rows = attempt()
-            if raw_rows:
-                break
+            companies = fetch_from_slickcharts()
+            break
         except Exception as exc:
-            logger.warning("Source failed: %s", exc)
-            time.sleep(2)
-
-    if not raw_rows:
-        logger.error("All sources failed. Aborting update.")
-        sys.exit(1)
-
-    companies = [normalize_row(r) for r in raw_rows]
-    companies = [c for c in companies if c]
+            logger.warning("Attempt %d failed: %s", attempt + 1, exc)
+            if attempt == 2:
+                logger.error("All attempts failed. Aborting.")
+                sys.exit(1)
+            time.sleep(5 * (attempt + 1))
 
     new_tickers = {c["ticker"] for c in companies}
-    logger.info("Parsed %d valid companies", len(new_tickers))
 
-    with get_db() as conn:
-        # Purge companies (+ their earnings via CASCADE) no longer in list
-        existing = {r[0] for r in conn.execute("SELECT ticker FROM companies").fetchall()}
-        removed = existing - new_tickers
-        if removed:
-            placeholders = ",".join("?" * len(removed))
-            conn.execute(f"DELETE FROM companies WHERE ticker IN ({placeholders})", list(removed))
-            logger.info("Purged %d companies no longer in Fortune 500: %s", len(removed), removed)
+    # Purge companies (and their earnings) no longer in the S&P 500
+    existing_tickers = {
+        doc["ticker"]
+        for doc in companies_col().find({}, {"ticker": 1, "_id": 0})
+    }
+    removed = existing_tickers - new_tickers
+    if removed:
+        earnings_col().delete_many({"ticker": {"$in": list(removed)}})
+        companies_col().delete_many({"ticker": {"$in": list(removed)}})
+        logger.info("Removed %d companies no longer in S&P 500: %s", len(removed), removed)
 
-        for c in companies:
-            conn.execute(
-                """INSERT INTO companies (name, ticker, rank, industry)
-                   VALUES (?, ?, ?, ?)
-                   ON CONFLICT(ticker) DO UPDATE SET
-                     name     = excluded.name,
-                     rank     = excluded.rank,
-                     industry = excluded.industry,
-                     last_updated = datetime('now')""",
-                (c["name"], c["ticker"], c["rank"], c["industry"]),
-            )
+    # Upsert all current companies (preserve existing fields like last_yahoo_fetch)
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
 
-    logger.info("Company list updated — %d total companies", len(companies))
+    ops = [
+        UpdateOne(
+            {"ticker": c["ticker"]},
+            {"$set": {
+                "ticker": c["ticker"],
+                "name": c["name"],
+                "rank": c["rank"],
+                "last_updated": now,
+            }},
+            upsert=True,
+        )
+        for c in companies
+    ]
+    result = companies_col().bulk_write(ops, ordered=False)
+    logger.info(
+        "Company list updated — %d upserted, %d matched.",
+        result.upserted_count,
+        result.matched_count,
+    )
 
 
 if __name__ == "__main__":

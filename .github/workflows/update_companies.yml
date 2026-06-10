@@ -1,0 +1,36 @@
+name: Update S&P 500 Company List
+
+on:
+  schedule:
+    # 1st of every month at 5 AM UTC — before the weekly earnings sync
+    - cron: '0 5 1 * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    name: Scrape slickcharts -> MongoDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Update S&P 500 company list
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+        run: python scripts/update_companies.py
+
+      - name: Report completion
+        if: always()
+        run: echo "Company update finished with status ${{ job.status }}"

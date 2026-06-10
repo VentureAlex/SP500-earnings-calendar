@@ -146,6 +146,8 @@ def init_db() -> None:
         expireAfterSeconds=0,
         name="ttl_date_dt",
     )
+    # Track when Yahoo Finance was last queried per company (used to skip re-fetches)
+    col_c.create_index("last_yahoo_fetch", sparse=True, name="idx_last_yahoo_fetch")
     logger.info("MongoDB indexes ensured.")
 
 
@@ -263,5 +265,11 @@ def ensure_seeded() -> None:
     """Initialize indexes and seed if the DB is empty (called on every startup)."""
     init_db()
     if is_empty() or os.environ.get("FORCE_RESEED") == "true":
-        logger.info("Seeding database from CSV...")
-        seed_from_csv()
+        logger.info("DB is empty — attempting live S&P 500 population from slickcharts...")
+        try:
+            from scripts.update_companies import update_companies
+            update_companies()
+            logger.info("Live population complete.")
+        except Exception as exc:
+            logger.warning("Live population failed (%s); falling back to seed CSV.", exc)
+            seed_from_csv()
